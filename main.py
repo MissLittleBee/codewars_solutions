@@ -1,4 +1,5 @@
 import logging
+import textwrap
 
 import requests
 
@@ -17,7 +18,15 @@ def get_user_data(username):
     return r.json()
 
 
+def show_user_info(user_data):
+    log.info(textwrap.dedent(f"""
+        Hi {user_data['name']},
+        you are currently at {user_data['ranks']['overall']['name']} 
+        with {user_data['codeChallenges']['totalCompleted']} completed katas.
+    """))
+
+
 if __name__ == '__main__':
     log.info(' START '.center(80, '='))
     user_data = get_user_data(CONFIG['CW_USERNAME'])
-    log.info(user_data)
+    show_user_info(user_data)
