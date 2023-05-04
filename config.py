@@ -6,7 +6,8 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 CONFIG = {
-    **dotenv_values(".env"),
+    **dotenv_values('.env_secret'),  # secret values
+    **dotenv_values('.env_public'),
     **os.environ,  # override loaded values with environment variables
 }
 
@@ -14,6 +15,8 @@ CONFIG = {
 USER_URL = fr"{CONFIG['API_URL']}users/{CONFIG['CW_USERNAME']}"
 
 CURRENT_DIR = Path.cwd()
+LOGS_DIR = CURRENT_DIR / 'logs'
+OUTPUT_DIR = CURRENT_DIR / 'output'
 
 LOG_CONF = {
     'version': 1,
@@ -34,7 +37,7 @@ LOG_CONF = {
         },
         'file_hand_rot': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': CURRENT_DIR / 'logs' / 'codewars_backup.log',
+            'filename': LOGS_DIR / 'codewars_backup.log',
             'maxBytes': 3_145_728,  # 3MB
             'backupCount': 5,  # five files with log backup
             'level': 'DEBUG',
