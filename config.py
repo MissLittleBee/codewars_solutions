@@ -10,6 +10,9 @@ CONFIG = {
     **os.environ,  # override loaded values with environment variables
 }
 
+# urls
+USER_URL = fr"{CONFIG['API_URL']}users/{CONFIG['CW_USERNAME']}"
+
 CURRENT_DIR = Path.cwd()
 
 LOG_CONF = {
