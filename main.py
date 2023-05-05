@@ -2,6 +2,7 @@ import itertools
 import logging
 import textwrap
 
+import requests
 from requests_html import HTMLSession
 
 from config import CONFIG
@@ -14,78 +15,104 @@ setup_logging()
 log = logging.getLogger(__name__)
 
 
-def get_user_data(session):
-    log.debug('getting user data')
-    r = session.get(USER_URL)
-    return r.json()
+class CodewarsAgent:
 
+    def __init__(self):
+        self.session = HTMLSession()
+        cookies = parse_cookie_env(CONFIG['CW_COOKIE'])
+        self.session.cookies = requests.utils.cookiejar_from_dict(cookies)
+        log.debug('Codewars agent prepared')
 
-def show_user_info(user_data):
-    log.info(
-        textwrap.dedent(
+    def get_user_data(self, url):
+        """Fetch user info json from public API."""
+        log.debug('getting user data')
+        r = self.session.get(url)
+        return r.json()
+
+    @staticmethod
+    def parse_user_info(user_data):
+        """Parse the provided user info into a readable paragraph."""
+        return textwrap.dedent(
             f"""Hi {user_data['name']},
            you are currently at {user_data['ranks']['overall']['name']} 
            with {user_data['codeChallenges']['totalCompleted']} completed katas."""
         )
-    )
 
+    def get_completed_katas_info(self):
+        """Fetch all completed katas info jsons.
 
-def get_completed_katas_info(session):
-    log.debug('loading katas data')
-    url = fr"{USER_URL}/code-challenges/completed"
-    katas_data = []
-    for page_num in itertools.count():
-        resp_json = session.get(url, params={'page': page_num}).json()
-        katas_data.extend(resp_json['data'])
-        if page_num == resp_json['totalPages'] - 1:
-            log.debug(f'loaded {len(katas_data)} katas')
-            return katas_data
+        Save it internally for later use.
+        """
 
+        log.debug('loading katas data')
+        url = fr"{USER_URL}/code-challenges/completed"
 
-def parse_description(response):
-    element = response.html.find('#description', first=True)
-    return element.text
+        completed_katas = []
 
+        for page_num in itertools.count():
+            resp_json = self.session.get(url, params={'page': page_num}).json()
+            completed_katas.extend(resp_json['data'])
 
-def parse_code(response):
-    element = response.html.find('#solutions_list code', first=True)
-    return element.text
+            if page_num == resp_json['totalPages'] - 1:
+                log.debug(f'loaded {len(completed_katas)} katas')
+                return completed_katas
+
+    def get_kata_data(self, kata_id):
+        """Get description and code for given kata_id."""
+
+        url = fr'https://www.codewars.com/kata/{kata_id}/solutions/python'
+        params = {'filter': 'me', 'sort': 'best_practice', 'invalids': 'false'}
+        r = self.session.get(url=url, params=params)
+
+        r.html.render()
+
+        description = self.parse_description(r)
+        code = self.parse_code(r)
+
+        return description, code
+
+    @staticmethod
+    def parse_description(response):
+        element = response.html.find('#description', first=True)
+        return element.text
+
+    @staticmethod
+    def parse_code(response):
+        element = response.html.find('#solutions_list code', first=True)
+        return element.text
 
 
 def prepare_text_to_write(kata_data, description, code):
     return ''
 
 
-def get_kata_data(session, kata_data):
-    url = fr'https://www.codewars.com/kata/{kata_data["id"]}/solutions/python'
-    params = {'filter': 'me', 'sort': 'best_practice', 'invalids': 'false'}
-    r = session.get(url=url, params=params)
+def save_kata(cw_agent, kata_data):
 
-    description = parse_description(r)
-    code = parse_code(r)
-
-    return description, code
-
-
-def save_kata(session, kata_data):
-    description, code = get_kata_data(session, kata_data)
+    description, code = cw_agent.get_kata_data(kata_data['id'])
     text_to_write = prepare_text_to_write(kata_data, description, code)
+
     with open(OUTPUT_DIR / f"{kata_data['name']}.md", 'w', encoding='utf8') as f:
         f.write(text_to_write)
+
+
+def parse_cookie_env(cookie):
+    return dict(
+        element.split('=', maxsplit=1)
+        for element in cookie.split('; ')
+    )
 
 
 if __name__ == '__main__':
     log.info(' START '.center(80, '='))
 
-    # prepare and auth session
-    session = HTMLSession()
-    session.auth = (CONFIG['CW_USERNAME'], CONFIG['CW_PWD'])
+    # prepare online agent
+    cw = CodewarsAgent()
 
-    user_data = get_user_data(session)
-    show_user_info(user_data)
+    user_data = cw.get_user_data(USER_URL)
+    log.info(cw.parse_user_info(user_data))
 
-    # get katas info from public api
-    all_katas = get_completed_katas_info(session)
+    # load completed katas info from public api
+    completed_katas_info = cw.get_completed_katas_info()
 
     # TODO: use threading to download the data
-    save_kata(session, all_katas[0])
+    save_kata(cw_agent=cw, kata_data=completed_katas_info[0])
