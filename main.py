@@ -64,7 +64,7 @@ class CodewarsAgent:
         params = {'filter': 'me', 'sort': 'best_practice', 'invalids': 'false'}
         r = self.session.get(url=url, params=params)
 
-        r.html.render()
+        r.html.render(reload=False)
 
         description = self.parse_description(r)
         code = self.parse_code(r)
