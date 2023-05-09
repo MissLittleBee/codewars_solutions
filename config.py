@@ -46,7 +46,7 @@ LOG_CONF = {
         },
     },
     'loggers': {
-        'root': {
+        'cw_logger': {
             'handlers': ['console_hand', 'file_hand_rot'],
             'level': 'DEBUG',
         }

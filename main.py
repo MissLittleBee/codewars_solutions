@@ -1,36 +1,66 @@
 import itertools
 import logging
 import textwrap
+from dataclasses import dataclass
+from http.cookiejar import CookieJar
+from http.cookies import SimpleCookie
+from typing import TypeVar
 
 import requests
+from requests import Response
 from requests_html import HTMLSession
 
 from config import CONFIG
-from config import OUTPUT_DIR
 from config import USER_URL
 from config import setup_logging
 
+Kata = TypeVar('Kata')
+
 setup_logging()
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('cw_logger')
+
+
+@dataclass
+class Kata:
+    data: dict
+    code: str = ''
+    description: str = ''
+    uploaded: bool = False
+
+    def __post_init__(self):
+        self.__dict__.update(self.data)
+
+    def to_file(self):
+        raise NotImplemented
 
 
 class CodewarsAgent:
 
     def __init__(self):
         self.session = HTMLSession()
-        cookies = parse_cookie_env(CONFIG['CW_COOKIE'])
+        cookies = self._parse_cookie_env(CONFIG['CW_COOKIE'])
         self.session.cookies = requests.utils.cookiejar_from_dict(cookies)
         log.debug('Codewars agent prepared')
 
-    def get_user_data(self, url):
+    @staticmethod
+    def _parse_cookie_env(raw_cookie: str) -> dict:
+        cookie_jar = CookieJar()
+        cookie = SimpleCookie()
+        cookie.load(raw_cookie)
+        return {
+            key: morsel.value
+            for key, morsel in cookie.items()
+        }
+
+    def get_user_data(self, url: str) -> dict:
         """Fetch user info json from public API."""
         log.debug('getting user data')
         r = self.session.get(url)
         return r.json()
 
     @staticmethod
-    def parse_user_info(user_data):
+    def parse_user_info(user_data: dict) -> str:
         """Parse the provided user info into a readable paragraph."""
         return textwrap.dedent(
             f"""Hi {user_data['name']},
@@ -38,7 +68,7 @@ class CodewarsAgent:
            with {user_data['codeChallenges']['totalCompleted']} completed katas."""
         )
 
-    def get_completed_katas_info(self):
+    def get_completed_katas_data(self) -> list[dict]:
         """Fetch all completed katas info jsons.
 
         Save it internally for later use.
@@ -57,7 +87,7 @@ class CodewarsAgent:
                 log.debug(f'loaded {len(completed_katas)} katas')
                 return completed_katas
 
-    def get_kata_data(self, kata_id):
+    def get_kata_data(self, kata_id: str) -> tuple[str, str]:
         """Get description and code for given kata_id."""
 
         url = fr'https://www.codewars.com/kata/{kata_id}/solutions/python'
@@ -72,34 +102,19 @@ class CodewarsAgent:
         return description, code
 
     @staticmethod
-    def parse_description(response):
+    def parse_description(response: Response) -> str:
         element = response.html.find('#description', first=True)
         return element.text
 
     @staticmethod
-    def parse_code(response):
+    def parse_code(response: Response) -> str:
         element = response.html.find('#solutions_list code', first=True)
         return element.text
 
-
-def prepare_text_to_write(kata_data, description, code):
-    return ''
-
-
-def save_kata(cw_agent, kata_data):
-
-    description, code = cw_agent.get_kata_data(kata_data['id'])
-    text_to_write = prepare_text_to_write(kata_data, description, code)
-
-    with open(OUTPUT_DIR / f"{kata_data['name']}.md", 'w', encoding='utf8') as f:
-        f.write(text_to_write)
-
-
-def parse_cookie_env(cookie):
-    return dict(
-        element.split('=', maxsplit=1)
-        for element in cookie.split('; ')
-    )
+    def create_kata_obj(self, kata_data: dict) -> Kata:
+        kata = Kata(kata_data)
+        kata.description, kata.code = self.get_kata_data(kata.id)
+        return kata
 
 
 if __name__ == '__main__':
@@ -112,7 +127,7 @@ if __name__ == '__main__':
     log.info(cw.parse_user_info(user_data))
 
     # load completed katas info from public api
-    completed_katas_info = cw.get_completed_katas_info()
+    completed_katas_info = cw.get_completed_katas_data()
 
     # TODO: use threading to download the data
-    save_kata(cw_agent=cw, kata_data=completed_katas_info[0])
+    cw.create_kata_obj(kata_data=completed_katas_info[0])
