@@ -7,6 +7,7 @@ Scrape your finished katas to files and upload then to a github repo.
 
 ## todo
 
-- auth using cookies
+- unhide description
+- better code formatting
 - download using threading
 - check already uploaded katas and don't download duplicates

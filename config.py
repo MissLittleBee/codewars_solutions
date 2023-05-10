@@ -5,18 +5,31 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-CONFIG = {
+ENV = {
     **dotenv_values('.env_secret'),  # secret values
     **dotenv_values('.env_public'),
     **os.environ,  # override loaded values with environment variables
 }
 
 # urls
-USER_URL = fr"{CONFIG['API_URL']}users/{CONFIG['CW_USERNAME']}"
+USER_URL = fr"{ENV['API_URL']}users/{ENV['CW_USERNAME']}"
 
 CURRENT_DIR = Path.cwd()
 LOGS_DIR = CURRENT_DIR / 'logs'
 OUTPUT_DIR = CURRENT_DIR / 'output'
+
+# kata
+KATA_TEMPLATE_STR = """\
+\"\"\"Kata - {name}
+
+completed at: {completed_at:%Y-%m-%d %H:%M:%S}
+by: Jakub Červinka
+
+{description}
+\"\"\"
+
+{code}
+"""
 
 LOG_CONF = {
     'version': 1,

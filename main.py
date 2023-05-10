@@ -1,8 +1,8 @@
+import datetime
 import itertools
 import logging
 import textwrap
 from dataclasses import dataclass
-from http.cookiejar import CookieJar
 from http.cookies import SimpleCookie
 from typing import TypeVar
 
@@ -10,7 +10,8 @@ import requests
 from requests import Response
 from requests_html import HTMLSession
 
-from config import CONFIG
+import config
+from config import ENV
 from config import USER_URL
 from config import setup_logging
 
@@ -23,35 +24,51 @@ log = logging.getLogger('cw_logger')
 
 @dataclass
 class Kata:
-    data: dict
+    id: str
+    name: str
+    slug: str
+    completedLanguages: list[str]
+    completedAt: str
     code: str = ''
     description: str = ''
     uploaded: bool = False
 
     def __post_init__(self):
-        self.__dict__.update(self.data)
+        # parse
+        self.completed_at = datetime.datetime.fromisoformat(self.completedAt[:-5])
+        self.completed_languages = self.completedLanguages
+        # remove the non pythonic names
+        del self.completedAt
+        del self.completedLanguages
 
     def to_file(self):
         raise NotImplemented
+
+    def to_template(self) -> str:
+        return config.KATA_TEMPLATE_STR.format(**self.__dict__)
+
+    def __str__(self):
+        return f'Kata: {self.name}'
+
+    __repr__ = __str__
 
 
 class CodewarsAgent:
 
     def __init__(self):
         self.session = HTMLSession()
-        cookies = self._parse_cookie_env(CONFIG['CW_COOKIE'])
-        self.session.cookies = requests.utils.cookiejar_from_dict(cookies)
+        cookies = self._parse_cookie_env(ENV['CW_COOKIE'])
+        self.session.cookies = cookies
         log.debug('Codewars agent prepared')
 
     @staticmethod
     def _parse_cookie_env(raw_cookie: str) -> dict:
-        cookie_jar = CookieJar()
         cookie = SimpleCookie()
         cookie.load(raw_cookie)
-        return {
+        return requests.utils.cookiejar_from_dict({
             key: morsel.value
             for key, morsel in cookie.items()
-        }
+        })
 
     def get_user_data(self, url: str) -> dict:
         """Fetch user info json from public API."""
@@ -112,7 +129,7 @@ class CodewarsAgent:
         return element.text
 
     def create_kata_obj(self, kata_data: dict) -> Kata:
-        kata = Kata(kata_data)
+        kata = Kata(**kata_data)
         kata.description, kata.code = self.get_kata_data(kata.id)
         return kata
 
