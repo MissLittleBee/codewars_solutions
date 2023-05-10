@@ -1,6 +1,8 @@
 import datetime
 import itertools
+import json
 import logging
+import re
 import textwrap
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
@@ -42,9 +44,12 @@ class Kata:
         del self.completedLanguages
 
     def to_file(self):
-        raise NotImplemented
+        f_name = self.slug.replace('-', '_') + '.py'
+        with open(config.OUTPUT_DIR / f_name, 'w', encoding='utf-8') as f:
+            f.write(self.templated_str)
 
-    def to_template(self) -> str:
+    @property
+    def templated_str(self) -> str:
         return config.KATA_TEMPLATE_STR.format(**self.__dict__)
 
     def __str__(self):
@@ -110,23 +115,15 @@ class CodewarsAgent:
         url = fr'https://www.codewars.com/kata/{kata_id}/solutions/python'
         params = {'filter': 'me', 'sort': 'best_practice', 'invalids': 'false'}
         r = self.session.get(url=url, params=params)
-
-        r.html.render(reload=False)
-
-        description = self.parse_description(r)
-        code = self.parse_code(r)
-
+        description, code = self._parse_response(r)
         return description, code
 
     @staticmethod
-    def parse_description(response: Response) -> str:
-        element = response.html.find('#description', first=True)
-        return element.text
-
-    @staticmethod
-    def parse_code(response: Response) -> str:
-        element = response.html.find('#solutions_list code', first=True)
-        return element.text
+    def _parse_response(response: Response) -> tuple[str, str]:
+        element = response.html.find('script')[-2]
+        text = re.findall(r'JSON\.parse\((.*)\),', element.full_text)[0]
+        script_data = json.loads(json.loads(text))  # double decode
+        return script_data['description'], script_data['solution']
 
     def create_kata_obj(self, kata_data: dict) -> Kata:
         kata = Kata(**kata_data)
@@ -136,6 +133,9 @@ class CodewarsAgent:
 
 if __name__ == '__main__':
     log.info(' START '.center(80, '='))
+
+    # prepare folders
+    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # prepare online agent
     cw = CodewarsAgent()
@@ -147,4 +147,5 @@ if __name__ == '__main__':
     completed_katas_info = cw.get_completed_katas_data()
 
     # TODO: use threading to download the data
-    cw.create_kata_obj(kata_data=completed_katas_info[0])
+    kata = cw.create_kata_obj(kata_data=completed_katas_info[0])
+    kata.to_file()

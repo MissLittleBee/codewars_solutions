@@ -7,6 +7,7 @@ Scrape your finished katas to files and upload then to a github repo.
 
 ## todo
 
+- migrate to Selenium
 - unhide description
 - better code formatting
 - download using threading
