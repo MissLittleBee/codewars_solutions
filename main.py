@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import textwrap
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from typing import TypeVar
@@ -11,6 +12,7 @@ from typing import TypeVar
 import requests
 from requests import Response
 from requests_html import HTMLSession
+from tqdm import tqdm
 
 import config
 from config import ENV
@@ -44,6 +46,7 @@ class Kata:
         del self.completedLanguages
 
     def to_file(self):
+        log.debug(f'saving kata {self.slug} to file')
         f_name = self.slug.replace('-', '_') + '.py'
         with open(config.OUTPUT_DIR / f_name, 'w', encoding='utf-8') as f:
             f.write(self.templated_str)
@@ -68,6 +71,7 @@ class CodewarsAgent:
 
     @staticmethod
     def _parse_cookie_env(raw_cookie: str) -> dict:
+        log.debug('parsing cookies')
         cookie = SimpleCookie()
         cookie.load(raw_cookie)
         return requests.utils.cookiejar_from_dict({
@@ -102,6 +106,7 @@ class CodewarsAgent:
         completed_katas = []
 
         for page_num in itertools.count():
+            log.debug(f'\tloading page {page_num}')
             resp_json = self.session.get(url, params={'page': page_num}).json()
             completed_katas.extend(resp_json['data'])
 
@@ -120,6 +125,7 @@ class CodewarsAgent:
 
     @staticmethod
     def _parse_response(response: Response) -> tuple[str, str]:
+        log.debug('parsing kata description and solution')
         element = response.html.find('script')[-2]
         text = re.findall(r'JSON\.parse\((.*)\),', element.full_text)[0]
         script_data = json.loads(json.loads(text))  # double decode
@@ -130,11 +136,15 @@ class CodewarsAgent:
         kata.description, kata.code = self.get_kata_data(kata.id)
         return kata
 
+    def thread_target(self, kata_data):
+        kata = self.create_kata_obj(kata_data)
+        kata.to_file()
+
 
 if __name__ == '__main__':
     log.info(' START '.center(80, '='))
 
-    # prepare folders
+    log.debug('preparing output folder')
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # prepare online agent
@@ -146,6 +156,14 @@ if __name__ == '__main__':
     # load completed katas info from public api
     completed_katas_info = cw.get_completed_katas_data()
 
-    # TODO: use threading to download the data
-    kata = cw.create_kata_obj(kata_data=completed_katas_info[0])
-    kata.to_file()
+    log.info('downloading katas')
+    # run the threads
+    with ThreadPoolExecutor(max_workers=15) as executor:
+        list(tqdm(
+            executor.map(
+                cw.thread_target,
+                completed_katas_info
+            ),
+            total=len(completed_katas_info)
+        ))
+    log.info('download finished')
