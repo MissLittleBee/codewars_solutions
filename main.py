@@ -7,6 +7,7 @@ import textwrap
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
+from pathlib import Path
 from typing import TypeVar
 
 import requests
@@ -67,6 +68,9 @@ class CodewarsAgent:
         self.session = HTMLSession()
         cookies = self._parse_cookie_env(ENV['CW_COOKIE'])
         self.session.cookies = cookies
+        self.completed_katas = []
+        self.uploaded_katas = set()
+        self.backup_file_name = 'uploaded_katas.txt'
         log.debug('Codewars agent prepared')
 
     @staticmethod
@@ -94,7 +98,7 @@ class CodewarsAgent:
            with {user_data['codeChallenges']['totalCompleted']} completed katas."""
         )
 
-    def get_completed_katas_data(self) -> list[dict]:
+    def load_completed_katas_data(self):
         """Fetch all completed katas info jsons.
 
         Save it internally for later use.
@@ -103,16 +107,29 @@ class CodewarsAgent:
         log.debug('loading katas data')
         url = fr"{USER_URL}/code-challenges/completed"
 
-        completed_katas = []
+        self.completed_katas = []
 
         for page_num in itertools.count():
             log.debug(f'\tloading page {page_num}')
             resp_json = self.session.get(url, params={'page': page_num}).json()
-            completed_katas.extend(resp_json['data'])
+            self.completed_katas.extend(resp_json['data'])
 
             if page_num == resp_json['totalPages'] - 1:
-                log.debug(f'loaded {len(completed_katas)} katas')
-                return completed_katas
+                log.debug(f'loaded {len(self.completed_katas)} katas')
+                break
+
+    def load_uploaded_katas(self):
+        file = Path(self.backup_file_name)
+        file.touch(exist_ok=True)
+        with open(file) as f:
+            self.uploaded_katas = set(f.read().splitlines())
+
+    def update_uploaded_katas(self):
+        file = Path(self.backup_file_name)
+        with open(file, 'a') as f:
+            f.writelines('\n'.join(
+                k['slug'] for k in self.katas_to_download
+            ))
 
     def get_kata_data(self, kata_id: str) -> tuple[str, str]:
         """Get description and code for given kata_id."""
@@ -122,6 +139,11 @@ class CodewarsAgent:
         r = self.session.get(url=url, params=params)
         description, code = self._parse_response(r)
         return description, code
+
+    @property
+    def katas_to_download(self):
+        pred = lambda k: k['slug'] not in self.uploaded_katas
+        return list(filter(pred, self.completed_katas))
 
     @staticmethod
     def _parse_response(response: Response) -> tuple[str, str]:
@@ -154,16 +176,20 @@ if __name__ == '__main__':
     log.info(cw.parse_user_info(user_data))
 
     # load completed katas info from public api
-    completed_katas_info = cw.get_completed_katas_data()
+    cw.load_completed_katas_data()
+
+    cw.load_uploaded_katas()
 
     log.info('downloading katas')
     # run the threads
-    with ThreadPoolExecutor(max_workers=15) as executor:
+    with ThreadPoolExecutor(max_workers=30) as executor:
         list(tqdm(
             executor.map(
                 cw.thread_target,
-                completed_katas_info
+                cw.katas_to_download
             ),
-            total=len(completed_katas_info)
+            total=len(cw.katas_to_download)
         ))
     log.info('download finished')
+
+    cw.update_uploaded_katas()
