@@ -198,9 +198,21 @@ if __name__ == '__main__':
     log.info('download finished')
 
     log.info('saving to git')
-    subprocess.run(['git', 'add', '.'], stdout=subprocess.DEVNULL)
-    subprocess.run(['git', 'commit', '-m', f'added {num_to_download} new katas'], stdout=subprocess.DEVNULL)
-    subprocess.run(['git', 'push', 'origin', 'HEAD'], stdout=subprocess.DEVNULL)
+    subprocess.run(
+        ['git', 'add', '.'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ['git', 'commit', '-m', f'added {num_to_download} new katas'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ['git', 'push', 'origin', 'HEAD'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
     log.info(' FINISH '.center(80, '='))
 
