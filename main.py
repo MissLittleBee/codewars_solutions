@@ -3,13 +3,13 @@ import itertools
 import json
 import logging
 import re
+import subprocess
 import textwrap
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import TypeVar
-import subprocess
 
 import requests
 from requests import Response
@@ -184,9 +184,15 @@ if __name__ == '__main__':
     # read already uploaded kata names
     cw.read_uploaded_katas()
 
+    num_to_download = len(cw.katas_to_download)
+
+    if not num_to_download:
+        log.info('nothing new to download')
+        log.info(' FINISH '.center(80, '='))
+        exit()
+
     log.info('downloading katas')
     # run the threads
-    num_to_download = len(cw.katas_to_download)
     with ThreadPoolExecutor(max_workers=30) as executor:
         list(tqdm(
             executor.map(
