@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import TypeVar
+import subprocess
 
 import requests
 from requests import Response
@@ -70,7 +71,6 @@ class CodewarsAgent:
         self.session.cookies = cookies
         self.completed_katas = []
         self.uploaded_katas = set()
-        self.backup_file_name = 'uploaded_katas.txt'
         log.debug('Codewars agent prepared')
 
     @staticmethod
@@ -103,7 +103,6 @@ class CodewarsAgent:
 
         Save it internally for later use.
         """
-
         log.debug('loading katas data')
         url = fr"{USER_URL}/code-challenges/completed"
 
@@ -118,22 +117,19 @@ class CodewarsAgent:
                 log.debug(f'loaded {len(self.completed_katas)} katas')
                 break
 
-    def load_uploaded_katas(self):
-        file = Path(self.backup_file_name)
-        file.touch(exist_ok=True)
-        with open(file) as f:
-            self.uploaded_katas = set(f.read().splitlines())
+    def read_uploaded_katas(self):
+        """Read the names of already uploaded katas.
 
-    def update_uploaded_katas(self):
-        file = Path(self.backup_file_name)
-        with open(file, 'a') as f:
-            f.writelines('\n'.join(
-                k['slug'] for k in self.katas_to_download
-            ))
+        Read the file names from the output folder and convert them to slugs for comparison.
+        """
+        self.uploaded_katas = [
+            elem.stem.replace('_', '-')
+            for elem in Path(config.OUTPUT_DIR).iterdir()
+            if elem.is_file()
+        ]
 
     def get_kata_data(self, kata_id: str) -> tuple[str, str]:
         """Get description and code for given kata_id."""
-
         url = fr'https://www.codewars.com/kata/{kata_id}/solutions/python'
         params = {'filter': 'me', 'sort': 'best_practice', 'invalids': 'false'}
         r = self.session.get(url=url, params=params)
@@ -142,11 +138,13 @@ class CodewarsAgent:
 
     @property
     def katas_to_download(self):
+        """Select the katas that are not already uploaded."""
         pred = lambda k: k['slug'] not in self.uploaded_katas
         return list(filter(pred, self.completed_katas))
 
     @staticmethod
     def _parse_response(response: Response) -> tuple[str, str]:
+        """Parse the kata page source for useful data."""
         log.debug('parsing kata description and solution')
         element = response.html.find('script')[-2]
         text = re.findall(r'JSON\.parse\((.*)\),', element.full_text)[0]
@@ -154,11 +152,16 @@ class CodewarsAgent:
         return script_data['description'], script_data['solution']
 
     def create_kata_obj(self, kata_data: dict) -> Kata:
+        """Create kata instance from api and parsed data."""
         kata = Kata(**kata_data)
         kata.description, kata.code = self.get_kata_data(kata.id)
         return kata
 
     def thread_target(self, kata_data):
+        """Download and save kata to file.
+
+        This is the target for multithreading.
+        """
         kata = self.create_kata_obj(kata_data)
         kata.to_file()
 
@@ -178,18 +181,27 @@ if __name__ == '__main__':
     # load completed katas info from public api
     cw.load_completed_katas_data()
 
-    cw.load_uploaded_katas()
+    # read already uploaded kata names
+    cw.read_uploaded_katas()
 
     log.info('downloading katas')
     # run the threads
+    num_to_download = len(cw.katas_to_download)
     with ThreadPoolExecutor(max_workers=30) as executor:
         list(tqdm(
             executor.map(
                 cw.thread_target,
                 cw.katas_to_download
             ),
-            total=len(cw.katas_to_download)
+            total=num_to_download
         ))
     log.info('download finished')
 
-    cw.update_uploaded_katas()
+    log.info('saving to git')
+    subprocess.run(['git', 'add', '.'])
+    subprocess.run(['git', 'commit', '-m', f'added {num_to_download} new katas'])
+    subprocess.run(['git', 'push', 'origin', 'HEAD'])
+
+
+
+
