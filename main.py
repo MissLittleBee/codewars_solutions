@@ -86,7 +86,7 @@ class CodewarsAgent:
     def get_user_data(self, url: str) -> dict:
         """Fetch user info json from public API."""
         log.debug('getting user data')
-        r = self.session.get(url)
+        r = self.session.get(url, verify=False)
         return r.json()
 
     @staticmethod
@@ -110,7 +110,7 @@ class CodewarsAgent:
 
         for page_num in itertools.count():
             log.debug(f'\tloading page {page_num}')
-            resp_json = self.session.get(url, params={'page': page_num}).json()
+            resp_json = self.session.get(url, params={'page': page_num}, verify=False).json()
             self.completed_katas.extend(resp_json['data'])
 
             if page_num == resp_json['totalPages'] - 1:
@@ -132,7 +132,7 @@ class CodewarsAgent:
         """Get description and code for given kata_id."""
         url = fr'https://www.codewars.com/kata/{kata_id}/solutions/python'
         params = {'filter': 'me', 'sort': 'best_practice', 'invalids': 'false'}
-        r = self.session.get(url=url, params=params)
+        r = self.session.get(url=url, params=params, verify=False)
         description, code = self._parse_response(r)
         return description, code
 
