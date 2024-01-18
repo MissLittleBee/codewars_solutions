@@ -146,7 +146,7 @@ class CodewarsAgent:
     def _parse_response(response: Response) -> tuple[str, str]:
         """Parse the kata page source for useful data."""
         log.debug('parsing kata description and solution')
-        element = response.html.find('script')[-2]
+        element = response.html.find('script')[-1]
         text = re.findall(r'JSON\.parse\((.*)\),', element.full_text)[0]
         script_data = json.loads(json.loads(text))  # double decode
         return script_data['description'], script_data['solution']
