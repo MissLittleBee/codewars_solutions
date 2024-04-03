@@ -10,6 +10,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 
 import requests
+import urllib3
 from requests import Response
 from requests_html import HTMLSession
 from tqdm import tqdm
@@ -18,6 +19,8 @@ import config
 from config import ENV
 from config import USER_URL
 from config import setup_logging
+
+urllib3.disable_warnings()
 
 setup_logging()
 
