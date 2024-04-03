@@ -3,15 +3,14 @@ import itertools
 import json
 import logging
 import re
-import subprocess
 import textwrap
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from pathlib import Path
-from typing import TypeVar
 
 import requests
+import urllib3
 from requests import Response
 from requests_html import HTMLSession
 from tqdm import tqdm
@@ -21,7 +20,7 @@ from config import ENV
 from config import USER_URL
 from config import setup_logging
 
-Kata = TypeVar('Kata')
+urllib3.disable_warnings()
 
 setup_logging()
 
@@ -166,7 +165,7 @@ class CodewarsAgent:
         kata.to_file()
 
 
-if __name__ == '__main__':
+def main():
     log.info(' START '.center(80, '='))
 
     log.debug('preparing output folder')
@@ -203,24 +202,8 @@ if __name__ == '__main__':
         ))
     log.info('download finished')
 
-    log.info('saving to git')
-    subprocess.run(
-        ['git', 'add', '.'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ['git', 'commit', '-m', f'added {num_to_download} new katas'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ['git', 'push', 'origin', 'HEAD'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
     log.info(' FINISH '.center(80, '='))
 
 
-
+if __name__ == '__main__':
+    raise SystemExit(main())

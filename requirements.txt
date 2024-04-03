@@ -1,4 +1,5 @@
 python-dotenv~=1.0.0
 requests-html
-requests~=2.30.0
+lxml[html_clean]
+requests
 tqdm
