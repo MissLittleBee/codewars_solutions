@@ -166,7 +166,7 @@ class CodewarsAgent:
         kata.to_file()
 
 
-if __name__ == '__main__':
+def main():
     log.info(' START '.center(80, '='))
 
     log.debug('preparing output folder')
@@ -223,4 +223,5 @@ if __name__ == '__main__':
     log.info(' FINISH '.center(80, '='))
 
 
-
+if __name__ == '__main__':
+    raise SystemExit(main())
