@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from pathlib import Path
-from typing import TypeVar
 
 import requests
 from requests import Response
@@ -19,8 +18,6 @@ import config
 from config import ENV
 from config import USER_URL
 from config import setup_logging
-
-Kata = TypeVar('Kata')
 
 setup_logging()
 
