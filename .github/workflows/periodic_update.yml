@@ -29,6 +29,6 @@ jobs:
           python main.py
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          file_pattern: '*.py'
+          file_pattern: 'output/*.py'
           branch: master
           commit_message: Automated update
