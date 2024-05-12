@@ -23,7 +23,7 @@ KATA_TEMPLATE_STR = """\
 \"\"\"Kata - {name}
 
 completed at: {completed_at:%Y-%m-%d %H:%M:%S}
-by: Jakub Červinka
+by: Barbora Hůlová
 
 {description}
 \"\"\"
